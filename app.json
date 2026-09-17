@@ -7,7 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "candlealerts",
     "userInterfaceStyle": "automatic",
-    "ios": { "icon": "./assets/expo.icon" },
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.guytito.CandleAlerts"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -16,10 +19,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.guytito.CandleAlerts",
-      "permissions": ["POST_NOTIFICATIONS"]
+      "package": "com.guytito.CandleAlerts"
     },
-    "web": { "output": "static", "favicon": "./assets/images/favicon.png" },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
     "plugins": [
       "expo-router",
       [
@@ -32,6 +37,9 @@
       ],
       "./src/lib/withCandleAlertsNative.ts"
     ],
-    "experiments": { "typedRoutes": true, "reactCompiler": true }
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
   }
 }
