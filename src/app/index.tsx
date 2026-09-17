@@ -1,17 +1,388 @@
-import { Text, View, StyleSheet } from "react-native";
+import { useState } from 'react';
+import {
+  Platform,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Keyboard,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { generateCandleAlerts, CandleAlertOptions, CandleAlert } from '@/lib/candleAlerts';
+import { setAlarmScheduler, getAlarmScheduler } from '@/lib/alarmSchedulerCore';
+import { androidAlarmScheduler } from '@/lib/alarmScheduler.android';
+import { iosAlarmScheduler } from '@/lib/alarmScheduler.ios';
+
+function initializeScheduler() {
+  if (Platform.OS === 'android') {
+    setAlarmScheduler(androidAlarmScheduler);
+  } else {
+    setAlarmScheduler(iosAlarmScheduler);
+  }
+}
 
 export default function Index() {
+  initializeScheduler();
+
+  const [intervalMinutes, setIntervalMinutes] = useState(15);
+  const [leadMinutes, setLeadMinutes] = useState(2);
+  const [count, setCount] = useState(8);
+  const [sameDayOnly, setSameDayOnly] = useState(true);
+  const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = () => {
+    setError(null);
+    try {
+      const opts: CandleAlertOptions = {
+        intervalMinutes,
+        leadMinutes,
+        count,
+        sameDayOnly,
+      };
+      const alerts = generateCandleAlerts(opts);
+      setGeneratedAlerts(alerts);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to generate alerts');
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (generatedAlerts.length === 0) {
+      Alert.alert('No alerts', 'Generate alerts first');
+      return;
+    }
+
+    Keyboard.dismiss();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const scheduler = getAlarmScheduler();
+      const opts: CandleAlertOptions = {
+        intervalMinutes,
+        leadMinutes,
+        count,
+        sameDayOnly,
+      };
+      await scheduler.scheduleTodaysCandleAlerts(opts);
+      Alert.alert('Success', `${generatedAlerts.length} alarms scheduled`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to schedule alarms';
+      setError(message);
+      Alert.alert('Error', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenClock = async () => {
+    setError(null);
+    try {
+      const scheduler = getAlarmScheduler();
+      await scheduler.openClockApp();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to open clock app';
+      setError(message);
+      Alert.alert('Error', message);
+    }
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Candle Alerts</Text>
+          <Text style={styles.subtitle}>Schedule candle-close alarms</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Interval (min)</Text>
+              <TextInput
+                style={styles.input}
+                value={String(intervalMinutes)}
+                onChangeText={(v) => setIntervalMinutes(Math.max(1, parseInt(v) || 1))}
+                keyboardType="numeric"
+                placeholder="15"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Lead (min)</Text>
+              <TextInput
+                style={styles.input}
+                value={String(leadMinutes)}
+                onChangeText={(v) => setLeadMinutes(Math.max(0, parseInt(v) || 0))}
+                keyboardType="numeric"
+                placeholder="2"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Count</Text>
+              <TextInput
+                style={styles.input}
+                value={String(count)}
+                onChangeText={(v) => setCount(Math.max(1, parseInt(v) || 1))}
+                keyboardType="numeric"
+                placeholder="8"
+              />
+            </View>
+          </View>
+
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Same day only</Text>
+            <TouchableOpacity
+              style={[
+                styles.toggle,
+                sameDayOnly ? styles.toggleOn : styles.toggleOff,
+              ]}
+              onPress={() => setSameDayOnly(!sameDayOnly)}
+            >
+              <Text style={styles.toggleText}>{sameDayOnly ? 'ON' : 'OFF'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={[styles.button, styles.buttonPrimary, isLoading && styles.buttonDisabled]}
+            onPress={handleGenerate}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>Generate Alerts</Text>
+          </TouchableOpacity>
+
+          {error && (
+            <Text style={styles.error}>{error}</Text>
+          )}
+
+          {generatedAlerts.length > 0 && (
+            <View style={styles.alertsContainer}>
+              <Text style={styles.alertsTitle}>
+                Generated Alerts ({generatedAlerts.length})
+              </Text>
+              {generatedAlerts.map((alert, index) => (
+                <View key={index} style={styles.alertItem}>
+                  <Text style={styles.alertLabel}>{alert.label}</Text>
+                  <View style={styles.alertTimes}>
+                    <Text style={styles.alertTime}>
+                      Alert: {formatTime(alert.alertTime)}
+                    </Text>
+                    <Text style={styles.alertTime}>
+                      Candle: {formatTime(alert.candleTime)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.button, styles.buttonSuccess, isLoading && styles.buttonDisabled]}
+                onPress={handleSchedule}
+                disabled={isLoading}
+              >
+                <Text style={styles.buttonText}>
+                  {isLoading ? 'Scheduling...' : 'Set Alarms'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.buttonOutline]}
+                onPress={handleOpenClock}
+                disabled={isLoading}
+              >
+                <Text style={[styles.buttonText, styles.buttonOutlineText]}>Open Clock App</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Platform: {Platform.OS}
+            {Platform.OS !== 'android' && ' (iOS not supported yet)'}
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#fff',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1a1a2e',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 4,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a2e',
+    marginBottom: 16,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  inputGroup: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  toggle: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 2,
+  },
+  toggleOn: {
+    backgroundColor: '#208AEF',
+    borderColor: '#208AEF',
+  },
+  toggleOff: {
+    backgroundColor: '#fff',
+    borderColor: '#ddd',
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  button: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    minHeight: 52,
+  },
+  buttonPrimary: {
+    backgroundColor: '#208AEF',
+  },
+  buttonSuccess: {
+    backgroundColor: '#10b981',
+    marginTop: 12,
+  },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#208AEF',
+    marginTop: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  buttonOutlineText: {
+    color: '#208AEF',
+  },
+  alertsContainer: {
+    marginTop: 16,
+  },
+  alertsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a2e',
+    marginBottom: 12,
+  },
+  alertItem: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+  },
+  alertLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1a1a2e',
+    marginBottom: 4,
+  },
+  alertTimes: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    fontSize: 13,
+    color: '#666',
+  },
+  alertTime: {
+    fontFamily: 'monospace',
+  },
+  error: {
+    color: '#ef4444',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  footer: {
+    marginTop: 32,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
   },
 });
