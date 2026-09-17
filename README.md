@@ -1,56 +1,159 @@
-# Welcome to your Expo app 👋
+# CandleAlerts
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native app built with Expo that schedules candle-close alarms on Android. Generate alert times based on candlestick chart intervals and set them as one-off alarms in the device Clock app via Android's AlarmClock API.
 
-## Get started
+## Overview
 
-1. Install dependencies
+CandleAlerts helps traders set a batch of one-off alarms for candle-forming times in technical analysis. Configure a candle interval (e.g., 15 minutes), a lead time before the candle forms (e.g., 2 minutes), and how many upcoming candles to track. The app generates alert times and schedules them in the device Clock app.
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- **Generate candle alerts** — Compute upcoming candle-forming times based on interval, lead time, and count
+- **Schedule Clock app alarms** — Create real one-off alarms via Android's AlarmClock API
+- **Open Clock app** — Quickly access the device's clock app to review or cancel scheduled alarms
+- **Same-day filter** — Optionally limit alerts to today only
 
-   ```bash
-   npx expo start
-   ```
+## Tech Stack
 
-In the output, you'll find options to open the app in a
+- **Expo SDK 57** with React 19 and React Native 0.86
+- **Expo Router** — File-based navigation
+- **TypeScript** with strict mode
+- **Custom native module** — Android native alarm scheduling via `NativeAlarmModule` (Kotlin)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/
+  app/
+    index.tsx          # Main screen — settings, alert generation, scheduling UI
+    _layout.tsx        # Root layout (Stack navigator)
+  lib/
+    candleAlerts.ts    # Pure logic: compute candle-close alert times (platform-agnostic)
+    alarmSchedulerCore.ts  # Platform-agnostic scheduler facade (setAlarmScheduler/getAlarmScheduler)
+    alarmScheduler.android.ts  # Android impl — uses NativeAlarmModule (AlarmClock API)
+    alarmScheduler.ios.ts    # iOS stub — throws unsupported (not yet implemented)
+    withCandleAlertsNative.ts  # Expo config plugin — injects Kotlin native module + manifest entries
+candle-alerts-resource/
+  candleAlerts.js      # JS-only version of alert logic (for Node testing)
+  alarmScheduler.js    # JS-only version of scheduler (for Node testing)
+  App.js               # Standalone example screen
+android/                 # Native Android project (generated/modified by config plugin)
+assets/                  # App icons, splash screen, images
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Get Started
 
-### Other setup steps
+### Prerequisites
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+- Node.js 20+
+- npm or yarn
+- Android device or emulator (iOS not currently supported)
+- Expo Go (for development builds on device) or EAS Build (for production)
 
-## Learn more
+### Install
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Run
 
-## Join the community
+```bash
+npx expo start
+```
 
-Join our community of developers creating universal apps.
+Then press:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **a** — Open on Android emulator
+- **i** — Open on iOS simulator
+- **w** — Open in web browser
+- **d** — Open Expo Developer Tools
+
+### Build for Production
+
+```bash
+# Development build
+npx eas build --profile development
+
+# Preview (APK)
+npx eas build --profile preview
+
+# Production (AAB)
+npx eas build --profile production
+```
+
+## Configuration
+
+### app.json
+
+Key settings in `app.json`:
+
+| Field                      | Value                      | Description                                                         |
+| -------------------------- | -------------------------- | ------------------------------------------------------------------- |
+| `expo.name`                | `CandleAlerts`             | App display name                                                    |
+| `expo.scheme`              | `candlealerts`             | Deep link scheme                                                    |
+| `expo.android.package`     | `com.guytito.CandleAlerts` | Android package ID                                                  |
+| `expo.android.permissions` | none                       | The config plugin declares `com.android.alarm.permission.SET_ALARM` |
+| `expo.plugins`             | `withCandleAlertsNative`   | Config plugin for native alarm module                               |
+
+### Environment Variables
+
+No environment variables required.
+
+## Usage
+
+1. Open the app and set your preferences:
+   - **Interval (min)** — Candle size in minutes (e.g., 15, 30, 60)
+   - **Lead (min)** — Minutes before the candle forms to alert (e.g., 2)
+   - **Count** — How many upcoming alerts to generate
+   - **Same day only** — Toggle to restrict alerts to today
+2. Tap **Generate Alerts** to preview upcoming alert times
+3. Tap **Set Alarms** to schedule them in your Android device's Clock app
+4. Tap **Open Clock App** to review or cancel alarms in the clock app
+
+## Architecture
+
+### Alert Generation (`candleAlerts.ts`)
+
+Pure TypeScript logic with no platform dependencies. Computes alert times by:
+
+1. Finding the next candle boundary after the current time (based on interval)
+2. Subtracting the lead time to get the alert time
+3. Generating up to `count` alerts, optionally restricted to the same day
+
+This module is fully testable in plain Node.js.
+
+### Alarm Scheduling (`alarmSchedulerCore.ts` + `alarmScheduler.android.ts`)
+
+A facade pattern decouples the UI from the platform implementation:
+
+- `setAlarmScheduler()` / `getAlarmScheduler()` — Register/retrieve the platform implementation
+- `scheduleCandleAlerts(alerts)` — Create the generated batch as Clock app alarms
+- `openClockApp()` — Launch the clock app's alarm list
+
+### Native Module (`withCandleAlertsNative.ts`)
+
+An Expo config plugin that:
+
+1. Injects Kotlin source files (`NativeAlarmModule.kt`, `NativeAlarmPackage.kt`) into the Android project
+2. Adds the Clock alarm permission and intent visibility queries to `AndroidManifest.xml`
+3. Adds `NativeAlarmPackage` to the React package list
+
+The native module wraps `AlarmClock.ACTION_SET_ALARM` for silent alarm creation and `AlarmClock.ACTION_SHOW_ALARMS` to open the clock app. Android's intent API accepts only an hour and minute, so CandleAlerts rejects alerts outside today's local date rather than risking a wrong-day alarm.
+
+### iOS
+
+iOS alarm scheduling is not yet implemented. The iOS stub throws descriptive errors. The UI gracefully shows "iOS not supported yet" in the footer.
+
+## Development Notes
+
+- **Native code**: After modifying `withCandleAlertsNative.ts`, run `npx expo prebuild` or rebuild via EAS Build to regenerate native files
+- **Testing alert logic**: Import `generateCandleAlerts` from `candle-alerts-resource/candleAlerts.js` in a plain Node script for server-side testing
+- **No iOS support yet**: The iOS scheduler stub and UI footer communicate this clearly
+- **Alarms are Clock-app-owned**: Once set, alarms belong to the clock app. This app cannot cancel or edit them; users should open the clock app to manage alarms.
+
+## Learn More
+
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/)
+- [React Native](https://reactnative.dev/)
