@@ -5,10 +5,10 @@
  * Implements are provided by alarmScheduler.android.ts and alarmScheduler.ios.ts
  */
 
-import { CandleAlertOptions, CandleAlert } from './candleAlerts';
+import { CandleAlert } from "./candleAlerts";
 
 export interface AlarmScheduler {
-  scheduleTodaysCandleAlerts(opts: CandleAlertOptions): Promise<CandleAlert[]>;
+  scheduleCandleAlerts(alerts: CandleAlert[]): Promise<CandleAlert[]>;
   openClockApp(): Promise<void>;
 }
 
@@ -20,7 +20,9 @@ export function setAlarmScheduler(scheduler: AlarmScheduler): void {
 
 export function getAlarmScheduler(): AlarmScheduler {
   if (!schedulerInstance) {
-    throw new Error('Alarm scheduler not initialized. Call setAlarmScheduler() first.');
+    throw new Error(
+      "Alarm scheduler not initialized. Call setAlarmScheduler() first.",
+    );
   }
   return schedulerInstance;
 }

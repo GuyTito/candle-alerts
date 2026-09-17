@@ -23,10 +23,13 @@ function generateCandleAlerts({
   now = new Date(),
   sameDayOnly = true,
 }) {
-  if (intervalMinutes <= 0) throw new Error('intervalMinutes must be > 0');
-  if (leadMinutes < 0) throw new Error('leadMinutes must be >= 0');
+  if (intervalMinutes <= 0) throw new Error("intervalMinutes must be > 0");
+  if (leadMinutes < 0) throw new Error("leadMinutes must be >= 0");
+  if (!Number.isInteger(count) || count <= 0 || count > 96) {
+    throw new Error("count must be an integer between 1 and 96");
+  }
   if (leadMinutes >= intervalMinutes) {
-    throw new Error('leadMinutes must be smaller than intervalMinutes');
+    throw new Error("leadMinutes must be smaller than intervalMinutes");
   }
 
   const results = [];
@@ -41,7 +44,9 @@ function generateCandleAlerts({
   let nextBoundaryIndex = Math.floor(msSinceMidnight / intervalMs) + 1;
 
   while (results.length < count) {
-    const candleTime = new Date(startOfDay.getTime() + nextBoundaryIndex * intervalMs);
+    const candleTime = new Date(
+      startOfDay.getTime() + nextBoundaryIndex * intervalMs,
+    );
 
     if (sameDayOnly && candleTime.getDate() !== now.getDate()) {
       break; // ran off the end of today
@@ -65,7 +70,7 @@ function generateCandleAlerts({
 }
 
 function pad(n) {
-  return n.toString().padStart(2, '0');
+  return n.toString().padStart(2, "0");
 }
 
 function formatHHMM(date) {

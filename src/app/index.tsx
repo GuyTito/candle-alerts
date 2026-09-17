@@ -1,24 +1,28 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
-  Platform,
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
   Alert,
   Keyboard,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { generateCandleAlerts, CandleAlertOptions, CandleAlert } from '@/lib/candleAlerts';
-import { setAlarmScheduler, getAlarmScheduler } from '@/lib/alarmSchedulerCore';
-import { androidAlarmScheduler } from '@/lib/alarmScheduler.android';
-import { iosAlarmScheduler } from '@/lib/alarmScheduler.ios';
+import { androidAlarmScheduler } from "@/lib/alarmScheduler.android";
+import { iosAlarmScheduler } from "@/lib/alarmScheduler.ios";
+import { getAlarmScheduler, setAlarmScheduler } from "@/lib/alarmSchedulerCore";
+import {
+  CandleAlert,
+  CandleAlertOptions,
+  generateCandleAlerts,
+} from "@/lib/candleAlerts";
 
 function initializeScheduler() {
-  if (Platform.OS === 'android') {
+  if (Platform.OS === "android") {
     setAlarmScheduler(androidAlarmScheduler);
   } else {
     setAlarmScheduler(iosAlarmScheduler);
@@ -30,7 +34,7 @@ export default function Index() {
 
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [leadMinutes, setLeadMinutes] = useState(2);
-  const [count, setCount] = useState(8);
+  const [count, setCount] = useState(2);
   const [sameDayOnly, setSameDayOnly] = useState(true);
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,13 +52,13 @@ export default function Index() {
       const alerts = generateCandleAlerts(opts);
       setGeneratedAlerts(alerts);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate alerts');
+      setError(e instanceof Error ? e.message : "Failed to generate alerts");
     }
   };
 
   const handleSchedule = async () => {
     if (generatedAlerts.length === 0) {
-      Alert.alert('No alerts', 'Generate alerts first');
+      Alert.alert("No alerts", "Generate alerts first");
       return;
     }
 
@@ -64,18 +68,13 @@ export default function Index() {
 
     try {
       const scheduler = getAlarmScheduler();
-      const opts: CandleAlertOptions = {
-        intervalMinutes,
-        leadMinutes,
-        count,
-        sameDayOnly,
-      };
-      await scheduler.scheduleTodaysCandleAlerts(opts);
-      Alert.alert('Success', `${generatedAlerts.length} alarms scheduled`);
+      await scheduler.scheduleCandleAlerts(generatedAlerts);
+      Alert.alert("Success", `${generatedAlerts.length} alarms scheduled`);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to schedule alarms';
+      const message =
+        e instanceof Error ? e.message : "Failed to schedule alarms";
       setError(message);
-      Alert.alert('Error', message);
+      Alert.alert("Error", message);
     } finally {
       setIsLoading(false);
     }
@@ -87,14 +86,20 @@ export default function Index() {
       const scheduler = getAlarmScheduler();
       await scheduler.openClockApp();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to open clock app';
+      const message =
+        e instanceof Error ? e.message : "Failed to open clock app";
       setError(message);
-      Alert.alert('Error', message);
+      Alert.alert("Error", message);
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -107,14 +112,17 @@ export default function Index() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          
+
           <View style={styles.inputRow}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Interval (min)</Text>
               <TextInput
                 style={styles.input}
                 value={String(intervalMinutes)}
-                onChangeText={(v) => setIntervalMinutes(Math.max(1, parseInt(v) || 1))}
+                onChangeText={(v) => {
+                  setIntervalMinutes(Math.max(1, parseInt(v) || 1));
+                  setGeneratedAlerts([]);
+                }}
                 keyboardType="numeric"
                 placeholder="15"
               />
@@ -124,7 +132,10 @@ export default function Index() {
               <TextInput
                 style={styles.input}
                 value={String(leadMinutes)}
-                onChangeText={(v) => setLeadMinutes(Math.max(0, parseInt(v) || 0))}
+                onChangeText={(v) => {
+                  setLeadMinutes(Math.max(0, parseInt(v) || 0));
+                  setGeneratedAlerts([]);
+                }}
                 keyboardType="numeric"
                 placeholder="2"
               />
@@ -137,7 +148,10 @@ export default function Index() {
               <TextInput
                 style={styles.input}
                 value={String(count)}
-                onChangeText={(v) => setCount(Math.max(1, parseInt(v) || 1))}
+                onChangeText={(v) => {
+                  setCount(Math.min(96, Math.max(1, parseInt(v) || 1)));
+                  setGeneratedAlerts([]);
+                }}
                 keyboardType="numeric"
                 placeholder="8"
               />
@@ -151,25 +165,32 @@ export default function Index() {
                 styles.toggle,
                 sameDayOnly ? styles.toggleOn : styles.toggleOff,
               ]}
-              onPress={() => setSameDayOnly(!sameDayOnly)}
+              onPress={() => {
+                setSameDayOnly(!sameDayOnly);
+                setGeneratedAlerts([]);
+              }}
             >
-              <Text style={styles.toggleText}>{sameDayOnly ? 'ON' : 'OFF'}</Text>
+              <Text style={styles.toggleText}>
+                {sameDayOnly ? "ON" : "OFF"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.section}>
           <TouchableOpacity
-            style={[styles.button, styles.buttonPrimary, isLoading && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              styles.buttonPrimary,
+              isLoading && styles.buttonDisabled,
+            ]}
             onPress={handleGenerate}
             disabled={isLoading}
           >
             <Text style={styles.buttonText}>Generate Alerts</Text>
           </TouchableOpacity>
 
-          {error && (
-            <Text style={styles.error}>{error}</Text>
-          )}
+          {error && <Text style={styles.error}>{error}</Text>}
 
           {generatedAlerts.length > 0 && (
             <View style={styles.alertsContainer}>
@@ -181,22 +202,26 @@ export default function Index() {
                   <Text style={styles.alertLabel}>{alert.label}</Text>
                   <View style={styles.alertTimes}>
                     <Text style={styles.alertTime}>
-                      Alert: {formatTime(alert.alertTime)}
+                      Alert: {formatDateTime(alert.alertTime)}
                     </Text>
                     <Text style={styles.alertTime}>
-                      Candle: {formatTime(alert.candleTime)}
+                      Candle: {formatDateTime(alert.candleTime)}
                     </Text>
                   </View>
                 </View>
               ))}
 
               <TouchableOpacity
-                style={[styles.button, styles.buttonSuccess, isLoading && styles.buttonDisabled]}
+                style={[
+                  styles.button,
+                  styles.buttonSuccess,
+                  isLoading && styles.buttonDisabled,
+                ]}
                 onPress={handleSchedule}
                 disabled={isLoading}
               >
                 <Text style={styles.buttonText}>
-                  {isLoading ? 'Scheduling...' : 'Set Alarms'}
+                  {isLoading ? "Scheduling..." : "Set Alarms"}
                 </Text>
               </TouchableOpacity>
 
@@ -205,7 +230,9 @@ export default function Index() {
                 onPress={handleOpenClock}
                 disabled={isLoading}
               >
-                <Text style={[styles.buttonText, styles.buttonOutlineText]}>Open Clock App</Text>
+                <Text style={[styles.buttonText, styles.buttonOutlineText]}>
+                  Open Clock App
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -214,7 +241,7 @@ export default function Index() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             Platform: {Platform.OS}
-            {Platform.OS !== 'android' && ' (iOS not supported yet)'}
+            {Platform.OS !== "android" && " (iOS not supported yet)"}
           </Text>
         </View>
       </ScrollView>
@@ -225,7 +252,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   scrollContent: {
     flexGrow: 1,
@@ -233,17 +260,17 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
-    color: '#1a1a2e',
+    fontWeight: "700",
+    color: "#1a1a2e",
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 4,
   },
   section: {
@@ -251,13 +278,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a2e',
+    fontWeight: "600",
+    color: "#1a1a2e",
     marginBottom: 16,
   },
   inputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 12,
     marginBottom: 16,
   },
@@ -266,28 +293,28 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 8,
   },
   toggleLabel: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   toggle: {
     paddingHorizontal: 16,
@@ -296,35 +323,35 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   toggleOn: {
-    backgroundColor: '#208AEF',
-    borderColor: '#208AEF',
+    backgroundColor: "#208AEF",
+    borderColor: "#208AEF",
   },
   toggleOff: {
-    backgroundColor: '#fff',
-    borderColor: '#ddd',
+    backgroundColor: "#fff",
+    borderColor: "#ddd",
   },
   toggleText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   button: {
     borderRadius: 12,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 52,
   },
   buttonPrimary: {
-    backgroundColor: '#208AEF',
+    backgroundColor: "#208AEF",
   },
   buttonSuccess: {
-    backgroundColor: '#10b981',
+    backgroundColor: "#10b981",
     marginTop: 12,
   },
   buttonOutline: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 2,
-    borderColor: '#208AEF',
+    borderColor: "#208AEF",
     marginTop: 12,
   },
   buttonDisabled: {
@@ -332,57 +359,57 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   buttonOutlineText: {
-    color: '#208AEF',
+    color: "#208AEF",
   },
   alertsContainer: {
     marginTop: 16,
   },
   alertsTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a2e',
+    fontWeight: "600",
+    color: "#1a1a2e",
     marginBottom: 12,
   },
   alertItem: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 10,
     padding: 14,
     marginBottom: 8,
   },
   alertLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#1a1a2e',
+    fontWeight: "500",
+    color: "#1a1a2e",
     marginBottom: 4,
   },
   alertTimes: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     fontSize: 13,
-    color: '#666',
+    color: "#666",
   },
   alertTime: {
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   error: {
-    color: '#ef4444',
+    color: "#ef4444",
     fontSize: 14,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   footer: {
     marginTop: 32,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: "#eee",
   },
   footerText: {
     fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
+    color: "#999",
+    textAlign: "center",
   },
 });

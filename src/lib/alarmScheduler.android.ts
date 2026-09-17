@@ -4,35 +4,71 @@
  * Android implementation of the alarm scheduler using NativeAlarmModule.
  */
 
-import { NativeModules } from 'react-native';
-import { CandleAlert, CandleAlertOptions, generateCandleAlerts } from './candleAlerts';
-import { AlarmScheduler } from './alarmSchedulerCore';
-
-const { NativeAlarmModule } = NativeModules;
-
-if (!NativeAlarmModule) {
-  throw new Error(
-    'NativeAlarmModule not found. Ensure the config plugin (withCandleAlertsNative) is added to app.json and you have run `npx expo prebuild` or are building with EAS Build.'
-  );
-}
+import { NativeModules } from "react-native";
+import { AlarmScheduler } from "./alarmSchedulerCore";
+import { CandleAlert } from "./candleAlerts";
 
 interface NativeAlarmModuleInterface {
-  setAlarm(hour: number, minute: number, message: string, skipUi: boolean): Promise<boolean>;
+  setAlarm(
+    hour: number,
+    minute: number,
+    message: string,
+    skipUi: boolean,
+  ): Promise<boolean>;
   showAlarms(): Promise<boolean>;
 }
 
-const nativeModule = NativeAlarmModule as NativeAlarmModuleInterface;
+function getNativeModule(): NativeAlarmModuleInterface {
+  const nativeModule = NativeModules.NativeAlarmModule as
+    | NativeAlarmModuleInterface
+    | undefined;
+  if (!nativeModule) {
+    throw new Error(
+      "NativeAlarmModule not found. Build the Android app with the CandleAlerts config plugin.",
+    );
+  }
+  return nativeModule;
+}
+
+function calendarDayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function calendarDayDistance(from: Date, to: Date): number {
+  const fromDay = new Date(from);
+  fromDay.setHours(0, 0, 0, 0);
+  const toDay = new Date(to);
+  toDay.setHours(0, 0, 0, 0);
+  return Math.round(
+    (toDay.getTime() - fromDay.getTime()) / (24 * 60 * 60 * 1000),
+  );
+}
+
+export function validateClockAlarmDates(
+  alerts: CandleAlert[],
+  now: Date,
+): void {
+  for (const alert of alerts) {
+    const daysAhead = calendarDayDistance(now, alert.alertTime);
+    if (daysAhead !== 0) {
+      throw new Error(
+        `Clock app alarms support today's date only; ${calendarDayKey(alert.alertTime)} cannot be represented safely`,
+      );
+    }
+  }
+}
 
 export const androidAlarmScheduler: AlarmScheduler = {
-  async scheduleTodaysCandleAlerts(opts: CandleAlertOptions): Promise<CandleAlert[]> {
-    const alerts = generateCandleAlerts(opts);
+  async scheduleCandleAlerts(alerts: CandleAlert[]): Promise<CandleAlert[]> {
+    validateClockAlarmDates(alerts, new Date());
+    const nativeModule = getNativeModule();
 
     for (const alert of alerts) {
       await nativeModule.setAlarm(
         alert.alertTime.getHours(),
         alert.alertTime.getMinutes(),
         alert.label,
-        true // skipUi — create silently, no confirmation screen
+        true, // skipUi — create silently, no confirmation screen
       );
     }
 
@@ -40,6 +76,6 @@ export const androidAlarmScheduler: AlarmScheduler = {
   },
 
   async openClockApp(): Promise<void> {
-    await nativeModule.showAlarms();
+    await getNativeModule().showAlarms();
   },
 };
