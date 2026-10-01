@@ -28,7 +28,7 @@ class NativeAlarmModule(reactContext: ReactApplicationContext) :
                 putExtra(AlarmClock.EXTRA_MINUTES, minute)
                 putExtra(AlarmClock.EXTRA_MESSAGE, message)
                 putExtra(AlarmClock.EXTRA_SKIP_UI, skipUi)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
             }
 
             if (intent.resolveActivity(reactApplicationContext.packageManager) == null) {
@@ -37,6 +37,23 @@ class NativeAlarmModule(reactContext: ReactApplicationContext) :
             }
 
             reactApplicationContext.startActivity(intent)
+
+            // Each ACTION_SET_ALARM launch targets the clock app's
+            // HandleSetApiCalls activity. startActivity() returns as soon as the
+            // launch is queued, so firing a batch back-to-back collapses them in
+            // ActivityTaskManager and the middle alarms are silently dropped --
+            // startActivity still returns success. Measured on AOSP Deskclock:
+            // 4 burst intents -> 2 alarms created, 4 intents paced 2s apart ->
+            // 4 alarms created. Wait here so each launch is consumed before the
+            // next one is dispatched.
+            try {
+                Thread.sleep(SET_ALARM_SPACING_MS)
+            } catch (ie: InterruptedException) {
+                Thread.currentThread().interrupt()
+                promise.reject("SET_ALARM_INTERRUPTED", "Alarm scheduling was interrupted", ie)
+                return
+            }
+
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("SET_ALARM_FAILED", e.message, e)
@@ -55,6 +72,30 @@ class NativeAlarmModule(reactContext: ReactApplicationContext) :
         } catch (e: Exception) {
             promise.reject("SHOW_ALARMS_FAILED", e.message, e)
         }
+    }
+
+    companion object {
+        /**
+         * Delay between consecutive ACTION_SET_ALARM launches.
+         *
+         * Measured on AOSP Deskclock by dispatching real batches:
+         *   - no delay     ->  2 of  4 created (middle launches dropped)
+         *   - 1200ms       -> 15 of 16 created
+         *   - 2000ms       ->  7 of  8 created  (one drop; still too tight)
+         *   - ~2200ms      ->  8 of  8 created  (adb am-start overhead on top
+         *                                    of a 2s sleep, so ~2.3s effective)
+         *
+         * 3000ms is set to keep real margin over the ~2.2s that measured clean.
+         * This is a race against a third-party activity, not a hard threshold, so
+         * occasional drops remain possible -- re-run a batch if an alarm is
+         * missing rather than assuming success. ACTION_SET_ALARM gives no way to
+         * confirm creation from the caller.
+         *
+         * This scales the wall-clock cost of a batch: N alerts take roughly
+         * N * 3000ms, and the UI shows "Scheduling..." throughout. A 96-alert
+         * batch would take about five minutes.
+         */
+        private const val SET_ALARM_SPACING_MS = 3000L
     }
 }
 `;

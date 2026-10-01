@@ -34,7 +34,7 @@ export default function Index() {
 
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [leadMinutes, setLeadMinutes] = useState(2);
-  const [count, setCount] = useState(2);
+  const [count, setCount] = useState("2");
   const [sameDayOnly, setSameDayOnly] = useState(true);
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +46,7 @@ export default function Index() {
       const opts: CandleAlertOptions = {
         intervalMinutes,
         leadMinutes,
-        count,
+        count: Number(count),
         sameDayOnly,
       };
       const alerts = generateCandleAlerts(opts);
@@ -68,8 +68,18 @@ export default function Index() {
 
     try {
       const scheduler = getAlarmScheduler();
+      const scheduledCount = generatedAlerts.length;
       await scheduler.scheduleCandleAlerts(generatedAlerts);
-      Alert.alert("Success", `${generatedAlerts.length} alarms scheduled`);
+      setGeneratedAlerts([]);
+      // Deliberately not "N alarms scheduled": startActivity success means the
+      // intent was dispatched, not that the clock app created the alarm. Only
+      // the clock app can confirm that.
+      Alert.alert(
+        "Alarms dispatched",
+        `Sent ${scheduledCount} alarm${
+          scheduledCount === 1 ? "" : "s"
+        } to the clock app.\n\nThe clock app owns them from here — tap "Open Clock App" to confirm they were all created.`,
+      );
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Failed to schedule alarms";
@@ -147,13 +157,12 @@ export default function Index() {
               <Text style={styles.label}>Count</Text>
               <TextInput
                 style={styles.input}
-                value={String(count)}
+                value={count}
                 onChangeText={(v) => {
-                  setCount(Math.min(96, Math.max(1, parseInt(v) || 1)));
+                  setCount(v);
                   setGeneratedAlerts([]);
                 }}
                 keyboardType="numeric"
-                placeholder="8"
               />
             </View>
           </View>
@@ -194,12 +203,48 @@ export default function Index() {
 
           {generatedAlerts.length > 0 && (
             <View style={styles.alertsContainer}>
-              <Text style={styles.alertsTitle}>
-                Generated Alerts ({generatedAlerts.length})
-              </Text>
+              <View style={styles.alertsHeader}>
+                <Text style={styles.alertsTitle}>
+                  Generated Alerts ({generatedAlerts.length})
+                </Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear all generated alerts"
+                  style={styles.alertActionButton}
+                  onPress={() => {
+                    setGeneratedAlerts([]);
+                    setError(null);
+                  }}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.alertAction}>Clear All</Text>
+                </TouchableOpacity>
+              </View>
               {generatedAlerts.map((alert, index) => (
-                <View key={index} style={styles.alertItem}>
-                  <Text style={styles.alertLabel}>{alert.label}</Text>
+                <View
+                  key={alert.alertTime.getTime()}
+                  style={styles.alertItem}
+                >
+                  <View style={styles.alertItemHeader}>
+                    <Text style={styles.alertLabel}>{alert.label}</Text>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${alert.label}`}
+                      style={styles.alertActionButton}
+                      onPress={() => {
+                        const alertTime = alert.alertTime.getTime();
+                        setGeneratedAlerts((currentAlerts) =>
+                          currentAlerts.filter(
+                            (item) => item.alertTime.getTime() !== alertTime,
+                          ),
+                        );
+                        setError(null);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Text style={styles.alertAction}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.alertTimes}>
                     <Text style={styles.alertTime}>
                       Alert: {formatDateTime(alert.alertTime)}
@@ -368,11 +413,23 @@ const styles = StyleSheet.create({
   alertsContainer: {
     marginTop: 16,
   },
+  alertsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
   alertsTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1a1a2e",
-    marginBottom: 12,
+  },
+  alertItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
   },
   alertItem: {
     backgroundColor: "#f8f9fa",
@@ -381,16 +438,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   alertLabel: {
+    flex: 1,
     fontSize: 14,
     fontWeight: "500",
     color: "#1a1a2e",
     marginBottom: 4,
   },
+  alertActionButton: {
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  alertAction: {
+    color: "#b42318",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   alertTimes: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    fontSize: 13,
-    color: "#666",
+    gap: 2,
   },
   alertTime: {
     fontFamily: "monospace",

@@ -28,6 +28,15 @@
           "imageWidth": 360
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       "./src/lib/withCandleAlertsNative.ts"
     ],
     "experiments": {

@@ -64,6 +64,8 @@ export const androidAlarmScheduler: AlarmScheduler = {
     const nativeModule = getNativeModule();
 
     for (const alert of alerts) {
+      // The native module paces these internally — see SET_ALARM_SPACING_MS in
+      // withCandleAlertsNative.ts. Do not add a JS-side delay here as well.
       await nativeModule.setAlarm(
         alert.alertTime.getHours(),
         alert.alertTime.getMinutes(),
