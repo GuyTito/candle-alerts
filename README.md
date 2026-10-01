@@ -33,10 +33,6 @@ src/
     alarmScheduler.android.ts  # Android impl — uses NativeAlarmModule (AlarmClock API)
     alarmScheduler.ios.ts    # iOS stub — throws unsupported (not yet implemented)
     withCandleAlertsNative.ts  # Expo config plugin — injects Kotlin native module + manifest entries
-candle-alerts-resource/
-  candleAlerts.js      # JS-only version of alert logic (for Node testing)
-  alarmScheduler.js    # JS-only version of scheduler (for Node testing)
-  App.js               # Standalone example screen
 android/                 # Native Android project (generated/modified by config plugin)
 assets/                  # App icons, splash screen, images
 ```
@@ -148,7 +144,7 @@ iOS alarm scheduling is not yet implemented. The iOS stub throws descriptive err
 ## Development Notes
 
 - **Native code**: After modifying `withCandleAlertsNative.ts`, run `npx expo prebuild` or rebuild via EAS Build to regenerate native files
-- **Testing alert logic**: Import `generateCandleAlerts` from `candle-alerts-resource/candleAlerts.js` in a plain Node script for server-side testing
+- **Testing alert logic**: Run `npm test` to test `src/lib/candleAlerts.ts` in Node.js
 - **No iOS support yet**: The iOS scheduler stub and UI footer communicate this clearly
 - **Alarms are Clock-app-owned**: Once set, alarms belong to the clock app. This app cannot cancel or edit them; users should open the clock app to manage alarms.
 

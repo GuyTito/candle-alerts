@@ -221,10 +221,7 @@ export default function Index() {
                 </TouchableOpacity>
               </View>
               {generatedAlerts.map((alert, index) => (
-                <View
-                  key={alert.alertTime.getTime()}
-                  style={styles.alertItem}
-                >
+                <View key={alert.alertTime.getTime()} style={styles.alertItem}>
                   <View style={styles.alertItemHeader}>
                     <Text style={styles.alertLabel}>{alert.label}</Text>
                     <TouchableOpacity

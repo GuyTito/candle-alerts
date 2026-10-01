@@ -19,7 +19,6 @@ CandleAlerts is an Expo + React Native app that schedules candle-close alarms on
 | `src/lib/alarmScheduler.ios.ts`     | iOS stub — throws unsupported                                       |
 | `src/lib/withCandleAlertsNative.ts` | Expo config plugin — injects and registers the Kotlin native module |
 | `app.json`                          | App config including plugins, permissions, scheme                   |
-| `candle-alerts-resource/`           | Plain JS versions for Node.js testing                               |
 
 ## Architecture Patterns
 
@@ -37,7 +36,7 @@ CandleAlerts is an Expo + React Native app that schedules candle-close alarms on
 
 ## Adding New Features
 
-1. Pure logic changes → edit `src/lib/candleAlerts.ts` (also update `candle-alerts-resource/candleAlerts.js` if needed for Node testing)
+1. Pure logic changes → edit `src/lib/candleAlerts.ts` and its Node.js tests
 2. UI changes → edit `src/app/index.tsx`
 3. Scheduling behavior changes → edit both `alarmSchedulerCore.ts` (interface) and `alarmScheduler.android.ts` (implementation)
 4. Native Android changes → edit `src/lib/withCandleAlertsNative.ts` (config plugin) and the Kotlin templates within it
@@ -45,6 +44,6 @@ CandleAlerts is an Expo + React Native app that schedules candle-close alarms on
 
 ## Testing
 
-- **Alert logic**: Import from `candle-alerts-resource/candleAlerts.js` in a Node script (no React Native needed)
+- **Alert logic**: Run `npm test` to test `src/lib/candleAlerts.ts` in Node.js (no React Native needed)
 - **Lint**: `npm run lint`
 - **Type-check**: `npx tsc --noEmit`

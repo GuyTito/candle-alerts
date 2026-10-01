@@ -1,7 +1,7 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+import assert from "node:assert/strict";
+import test from "node:test";
 
-const { generateCandleAlerts } = require("./candleAlerts.js");
+import { generateCandleAlerts } from "./candleAlerts";
 
 test("generates the next boundaries after now", () => {
   const now = new Date(2026, 8, 17, 12, 7, 0, 0);

@@ -30,6 +30,7 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -40,7 +41,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test candle-alerts-resource/candleAlerts.test.js"
+    "test": "tsx --test src/lib/candleAlerts.test.ts"
   },
   "private": true
 }
