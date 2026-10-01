@@ -266,18 +266,18 @@ export default function Index() {
                   {isLoading ? "Scheduling..." : "Set Alarms"}
                 </Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, styles.buttonOutline]}
-                onPress={handleOpenClock}
-                disabled={isLoading}
-              >
-                <Text style={[styles.buttonText, styles.buttonOutlineText]}>
-                  Open Clock App
-                </Text>
-              </TouchableOpacity>
             </View>
           )}
+
+          <TouchableOpacity
+            style={[styles.button, styles.buttonOutline]}
+            onPress={handleOpenClock}
+            disabled={isLoading}
+          >
+            <Text style={[styles.buttonText, styles.buttonOutlineText]}>
+              Open Clock App
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
