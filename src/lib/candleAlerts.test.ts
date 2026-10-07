@@ -87,3 +87,16 @@ test("rejects invalid alert options", () => {
     /count must be/,
   );
 });
+
+test("continues past midnight by default", () => {
+  const now = new Date(2026, 8, 17, 23, 50, 0, 0);
+  const alerts = generateCandleAlerts({
+    intervalMinutes: 15,
+    leadMinutes: 2,
+    count: 2,
+    now,
+  });
+
+  assert.equal(alerts.length, 2);
+  assert.equal(alerts[0].candleTime.getDate(), 18);
+});

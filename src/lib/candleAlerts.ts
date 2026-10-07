@@ -33,7 +33,7 @@ export function generateCandleAlerts(opts: CandleAlertOptions): CandleAlert[] {
     leadMinutes,
     count,
     now = new Date(),
-    sameDayOnly = true,
+    sameDayOnly = false,
   } = opts;
 
   if (intervalMinutes <= 0) throw new Error("intervalMinutes must be > 0");

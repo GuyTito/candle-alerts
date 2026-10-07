@@ -11,7 +11,7 @@ CandleAlerts helps traders set a batch of one-off alarms for candle-forming time
 - **Generate candle alerts** — Compute upcoming candle-forming times based on interval, lead time, and count
 - **Schedule Clock app alarms** — Create real one-off alarms via Android's AlarmClock API
 - **Open Clock app** — Quickly access the device's clock app to review or cancel scheduled alarms
-- **Same-day filter** — Optionally limit alerts to today only
+- **Same-day filter** — Optionally limit alerts to today only (off by default)
 
 ## Tech Stack
 
@@ -135,7 +135,7 @@ An Expo config plugin that:
 2. Adds the Clock alarm permission and intent visibility queries to `AndroidManifest.xml`
 3. Adds `NativeAlarmPackage` to the React package list
 
-The native module wraps `AlarmClock.ACTION_SET_ALARM` for silent alarm creation and `AlarmClock.ACTION_SHOW_ALARMS` to open the clock app. Android's intent API accepts only an hour and minute, so CandleAlerts rejects alerts outside today's local date rather than risking a wrong-day alarm.
+The native module wraps `AlarmClock.ACTION_SET_ALARM` for silent alarm creation and `AlarmClock.ACTION_SHOW_ALARMS` to open the clock app. Android's intent API accepts only an hour and minute, so CandleAlerts rejects alerts that are not within the next 24 hours (the Clock app sets the next occurrence of that time, so alerts crossing midnight work) rather than risking a wrong-day alarm.
 
 ### iOS
 

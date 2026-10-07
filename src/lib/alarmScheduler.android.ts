@@ -30,29 +30,20 @@ function getNativeModule(): NativeAlarmModuleInterface {
   return nativeModule;
 }
 
-function calendarDayKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function calendarDayDistance(from: Date, to: Date): number {
-  const fromDay = new Date(from);
-  fromDay.setHours(0, 0, 0, 0);
-  const toDay = new Date(to);
-  toDay.setHours(0, 0, 0, 0);
-  return Math.round(
-    (toDay.getTime() - fromDay.getTime()) / (24 * 60 * 60 * 1000),
-  );
-}
-
+// The intent carries only hour:minute, so Clock sets the next occurrence of it.
+// That matches the intended time for any alert in the future within 24 hours,
+// including ones that cross midnight.
 export function validateClockAlarmDates(
   alerts: CandleAlert[],
   now: Date,
 ): void {
   for (const alert of alerts) {
-    const daysAhead = calendarDayDistance(now, alert.alertTime);
-    if (daysAhead !== 0) {
+    const msAhead = alert.alertTime.getTime() - now.getTime();
+    if (msAhead <= 0 || msAhead >= DAY_MS) {
       throw new Error(
-        `Clock app alarms support today's date only; ${calendarDayKey(alert.alertTime)} cannot be represented safely`,
+        `Clock app alarms must be within the next 24 hours; ${alert.alertTime.toString()} cannot be represented safely`,
       );
     }
   }

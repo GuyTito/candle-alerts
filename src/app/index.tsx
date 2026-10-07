@@ -35,7 +35,7 @@ export default function Index() {
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [leadMinutes, setLeadMinutes] = useState(2);
   const [count, setCount] = useState("2");
-  const [sameDayOnly, setSameDayOnly] = useState(true);
+  const [sameDayOnly, setSameDayOnly] = useState(false);
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
