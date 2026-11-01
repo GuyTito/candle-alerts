@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { Href, Link, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -15,11 +15,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { androidAlarmScheduler } from "@/lib/alarmScheduler.android";
 import { iosAlarmScheduler } from "@/lib/alarmScheduler.ios";
 import { getAlarmScheduler, setAlarmScheduler } from "@/lib/alarmSchedulerCore";
+import { SettingsFieldValues, SettingsFields } from "@/components/SettingsFields";
 import {
   CandleAlert,
   CandleAlertOptions,
   generateCandleAlerts,
 } from "@/lib/candleAlerts";
+import { DEFAULT_VALUES } from "@/lib/defaults";
+import { loadDefaults } from "@/lib/defaultsStorage";
 
 function initializeScheduler() {
   if (Platform.OS === "android") {
@@ -32,22 +35,45 @@ function initializeScheduler() {
 export default function Index() {
   initializeScheduler();
 
-  const [intervalMinutes, setIntervalMinutes] = useState(15);
-  const [leadMinutes, setLeadMinutes] = useState(2);
-  const [count, setCount] = useState("2");
-  const [sameDayOnly, setSameDayOnly] = useState(false);
+  const [fields, setFields] = useState<SettingsFieldValues>({
+    intervalMinutes: String(DEFAULT_VALUES.intervalMinutes),
+    leadMinutes: String(DEFAULT_VALUES.leadMinutes),
+    count: String(DEFAULT_VALUES.count),
+    sameDayOnly: DEFAULT_VALUES.sameDayOnly,
+  });
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reload saved defaults whenever the screen gains focus (e.g. returning
+  // from settings), replacing the current temporary edits.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadDefaults().then((d) => {
+        if (!active) return;
+        setFields({
+          intervalMinutes: String(d.intervalMinutes),
+          leadMinutes: String(d.leadMinutes),
+          count: String(d.count),
+          sameDayOnly: d.sameDayOnly,
+        });
+        setGeneratedAlerts([]);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const handleGenerate = () => {
     setError(null);
     try {
       const opts: CandleAlertOptions = {
-        intervalMinutes,
-        leadMinutes,
-        count: Number(count),
-        sameDayOnly,
+        intervalMinutes: Number(fields.intervalMinutes),
+        leadMinutes: Number(fields.leadMinutes),
+        count: Number(fields.count),
+        sameDayOnly: fields.sameDayOnly,
       };
       const alerts = generateCandleAlerts(opts);
       setGeneratedAlerts(alerts);
@@ -121,69 +147,22 @@ export default function Index() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-
-          <View style={styles.inputRow}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Interval (min)</Text>
-              <TextInput
-                style={styles.input}
-                value={String(intervalMinutes)}
-                onChangeText={(v) => {
-                  setIntervalMinutes(Math.max(1, parseInt(v) || 1));
-                  setGeneratedAlerts([]);
-                }}
-                keyboardType="numeric"
-                placeholder="15"
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Lead (min)</Text>
-              <TextInput
-                style={styles.input}
-                value={String(leadMinutes)}
-                onChangeText={(v) => {
-                  setLeadMinutes(Math.max(0, parseInt(v) || 0));
-                  setGeneratedAlerts([]);
-                }}
-                keyboardType="numeric"
-                placeholder="2"
-              />
-            </View>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+              Settings
+            </Text>
+            <Link href={"/settings" as Href} style={styles.settingsLink}>
+              Edit defaults
+            </Link>
           </View>
 
-          <View style={styles.inputRow}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Count</Text>
-              <TextInput
-                style={styles.input}
-                value={count}
-                onChangeText={(v) => {
-                  setCount(v);
-                  setGeneratedAlerts([]);
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Same day only</Text>
-            <TouchableOpacity
-              style={[
-                styles.toggle,
-                sameDayOnly ? styles.toggleOn : styles.toggleOff,
-              ]}
-              onPress={() => {
-                setSameDayOnly(!sameDayOnly);
-                setGeneratedAlerts([]);
-              }}
-            >
-              <Text style={styles.toggleText}>
-                {sameDayOnly ? "ON" : "OFF"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <SettingsFields
+            values={fields}
+            onChange={(patch) => {
+              setFields((current) => ({ ...current, ...patch }));
+              setGeneratedAlerts([]);
+            }}
+          />
         </View>
 
         <View style={styles.section}>
@@ -324,58 +303,19 @@ const styles = StyleSheet.create({
     color: "#1a1a2e",
     marginBottom: 16,
   },
-  inputRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 16,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: "#fff",
-  },
-  toggleRow: {
+  sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
+    marginBottom: 16,
   },
-  toggleLabel: {
-    fontSize: 16,
-    color: "#333",
+  sectionTitleInline: {
+    marginBottom: 0,
   },
-  toggle: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 2,
-  },
-  toggleOn: {
-    backgroundColor: "#208AEF",
-    borderColor: "#208AEF",
-  },
-  toggleOff: {
-    backgroundColor: "#fff",
-    borderColor: "#ddd",
-  },
-  toggleText: {
+  settingsLink: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: "#208AEF",
   },
   button: {
     borderRadius: 12,
