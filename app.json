@@ -37,7 +37,8 @@
           }
         }
       ],
-      "./src/lib/withCandleAlertsNative.ts"
+      "./src/lib/withCandleAlertsNative.ts",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

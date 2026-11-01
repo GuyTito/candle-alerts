@@ -1,3 +1,6 @@
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import { Href, Link, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -41,6 +44,8 @@ export default function Index() {
     count: String(DEFAULT_VALUES.count),
     sameDayOnly: DEFAULT_VALUES.sameDayOnly,
   });
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [showIosPicker, setShowIosPicker] = useState(false);
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,16 +74,45 @@ export default function Index() {
   const handleGenerate = () => {
     setError(null);
     try {
+      if (startDate && startDate <= new Date()) {
+        throw new Error("Start time must be in the future");
+      }
       const opts: CandleAlertOptions = {
         intervalMinutes: Number(fields.intervalMinutes),
         leadMinutes: Number(fields.leadMinutes),
         count: Number(fields.count),
         sameDayOnly: fields.sameDayOnly,
+        now: startDate ?? undefined,
       };
       const alerts = generateCandleAlerts(opts);
       setGeneratedAlerts(alerts);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate alerts");
+    }
+  };
+
+  // Time-only picker: use that time today, or tomorrow if already passed.
+  const applyStartTime = (time: Date) => {
+    const result = new Date();
+    result.setHours(time.getHours(), time.getMinutes(), 0, 0);
+    if (result <= new Date()) result.setDate(result.getDate() + 1);
+    setStartDate(result);
+    setGeneratedAlerts([]);
+  };
+
+  const handlePickStart = () => {
+    const initial = startDate ?? new Date();
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        value: initial,
+        mode: "time",
+        is24Hour: true,
+        onChange: (_e, time) => {
+          if (time) applyStartTime(time);
+        },
+      });
+    } else {
+      setShowIosPicker((v) => !v);
     }
   };
 
@@ -163,6 +197,37 @@ export default function Index() {
               setGeneratedAlerts([]);
             }}
           />
+
+          <Text style={styles.startLabel}>Start time</Text>
+          <View style={styles.startRow}>
+            <TouchableOpacity
+              style={[styles.startInput, styles.startButton]}
+              onPress={handlePickStart}
+            >
+              <Text style={styles.startButtonText}>
+                {startDate ? formatDateTime(startDate) : "Now"}
+              </Text>
+            </TouchableOpacity>
+            {startDate && (
+              <TouchableOpacity
+                accessibilityLabel="Reset start time to now"
+                onPress={() => {
+                  setStartDate(null);
+                  setShowIosPicker(false);
+                  setGeneratedAlerts([]);
+                }}
+              >
+                <Text style={styles.settingsLink}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {Platform.OS === "ios" && showIosPicker && (
+            <DateTimePicker
+              value={startDate ?? new Date()}
+              mode="time"
+              onChange={(_e, d) => d && applyStartTime(d)}
+            />
+          )}
         </View>
 
         <View style={styles.section}>
@@ -271,6 +336,34 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
+  startLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  startRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  startButton: {
+    flex: 1,
+  },
+  startButtonText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  startInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: "#fff",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff",
