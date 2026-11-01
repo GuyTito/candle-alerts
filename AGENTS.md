@@ -33,7 +33,7 @@ CandleAlerts is an Expo + React Native app that schedules candle-close alarms on
 
 - **iOS not supported**: `alarmScheduler.ios.ts` throws errors. The UI shows a footer noting this.
 - **Native module requires prebuild**: After editing the config plugin, run `npx expo prebuild` or use EAS Build.
-- **Two alarm modes** (Settings → Alarm mode): `clock` (default; Clock-app intents, foreground-bound, OS-owned) and `app` (app-owned via `appAlarmScheduler.ts`; instant, background, cancellable in-app). Alarms don't transfer between modes.
+- **Two alarm modes** (Settings → Alarm mode): `clock` (Clock-app intents, foreground-bound, OS-owned) and `app` (default; app-owned via `appAlarmScheduler.ts`; instant, background, cancellable in-app). Alarms don't transfer between modes.
 - **Config plugin templates**: the plugin loader can't resolve relative TS imports, so Kotlin lives in `src/lib/native-templates/*.kt.txt` and is read with `fs`.
 - **Clock-mode alarms are OS-owned**: The app cannot cancel/modify them. Users manage them in the clock app.
 - **Clock-app alarms**: The device Clock app owns these alarms; this app cannot cancel or edit them through the intent API.
