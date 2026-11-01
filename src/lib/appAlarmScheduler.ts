@@ -23,6 +23,32 @@ interface NativeAppAlarmModule {
   setSnoozeMinutes(minutes: number): Promise<boolean>;
   canScheduleExactAlarms(): Promise<boolean>;
   openExactAlarmSettings(): Promise<boolean>;
+  canUseFullScreenIntent(): Promise<boolean>;
+  openFullScreenIntentSettings(): Promise<boolean>;
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  openBatteryOptimizationSettings(): Promise<boolean>;
+}
+
+export interface ReliabilityStatus {
+  fullScreenIntent: boolean;
+  batteryUnrestricted: boolean;
+}
+
+export async function getReliabilityStatus(): Promise<ReliabilityStatus> {
+  const nativeModule = getNativeModule();
+  const [fullScreenIntent, batteryUnrestricted] = await Promise.all([
+    nativeModule.canUseFullScreenIntent(),
+    nativeModule.isIgnoringBatteryOptimizations(),
+  ]);
+  return { fullScreenIntent, batteryUnrestricted };
+}
+
+export async function openFullScreenIntentSettings(): Promise<void> {
+  await getNativeModule().openFullScreenIntentSettings();
+}
+
+export async function openBatteryOptimizationSettings(): Promise<void> {
+  await getNativeModule().openBatteryOptimizationSettings();
 }
 
 function getNativeModule(): NativeAppAlarmModule {

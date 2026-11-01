@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Alert,
   Platform,
@@ -13,6 +14,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AlarmMode, APP_MODE_AVAILABLE, DEFAULT_ALARM_MODE } from "@/lib/alarmMode";
 import { loadAlarmMode, saveAlarmMode } from "@/lib/alarmModeStorage";
+import {
+  getReliabilityStatus,
+  openBatteryOptimizationSettings,
+  openFullScreenIntentSettings,
+  ReliabilityStatus,
+} from "@/lib/appAlarmScheduler";
 
 import { SettingsFieldValues, SettingsFields } from "@/components/SettingsFields";
 import { DEFAULT_VALUES, Defaults, validateDefaults } from "@/lib/defaults";
@@ -33,6 +40,20 @@ export default function Settings() {
   const [mode, setMode] = useState<AlarmMode>(DEFAULT_ALARM_MODE);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [reliability, setReliability] = useState<ReliabilityStatus | null>(
+    null,
+  );
+
+  // Re-check when returning from the system settings screens.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      getReliabilityStatus()
+        .then(setReliability)
+        .catch(() => setReliability(null));
+    }, []),
+  );
 
   useEffect(() => {
     Promise.all([loadDefaults(), loadAlarmMode()]).then(([d, m]) => {
@@ -143,6 +164,48 @@ export default function Settings() {
             <Text style={styles.modeText}>
               Switching modes does not move alarms that already exist.
             </Text>
+
+            {mode === "app" && reliability && (
+              <View style={styles.modeSection}>
+                <Text style={styles.sectionTitle}>Alarm reliability</Text>
+                {!reliability.fullScreenIntent && (
+                  <TouchableOpacity
+                    style={styles.modeCard}
+                    onPress={() => openFullScreenIntentSettings()}
+                  >
+                    <Text style={styles.modeTitle}>
+                      Allow full-screen alarms
+                    </Text>
+                    <Text style={styles.modeText}>
+                      Without this, alarms ring but will not take over a locked
+                      screen. Tap to open settings.
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {!reliability.batteryUnrestricted && (
+                  <TouchableOpacity
+                    style={styles.modeCard}
+                    onPress={() => openBatteryOptimizationSettings()}
+                  >
+                    <Text style={styles.modeTitle}>
+                      Disable battery optimization
+                    </Text>
+                    <Text style={styles.modeText}>
+                      Some phones stop apps in the background and can delay or
+                      cancel alarms. Choose CandleAlerts and set it to
+                      unrestricted / don&apos;t optimize.
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {reliability.fullScreenIntent &&
+                  reliability.batteryUnrestricted && (
+                    <Text style={styles.modeText}>
+                      All set: full-screen alarms and background running are
+                      allowed.
+                    </Text>
+                  )}
+              </View>
+            )}
           </View>
         )}
 

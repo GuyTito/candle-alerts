@@ -14,6 +14,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.AlarmClock
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -178,6 +179,26 @@ class NativeAlarmModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun openFullScreenIntentSettings(promise: Promise) {
         openSettings("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", 34, promise)
+    }
+
+    @ReactMethod
+    fun isIgnoringBatteryOptimizations(promise: Promise) {
+        val ctx = reactApplicationContext
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
+        promise.resolve(pm.isIgnoringBatteryOptimizations(ctx.packageName))
+    }
+
+    @ReactMethod
+    fun openBatteryOptimizationSettings(promise: Promise) {
+        try {
+            val intent = Intent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS").apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            reactApplicationContext.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("OPEN_SETTINGS_FAILED", e.message, e)
+        }
     }
 
     private fun openSettings(action: String, minSdk: Int, promise: Promise) {

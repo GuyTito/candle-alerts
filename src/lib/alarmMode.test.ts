@@ -9,6 +9,10 @@ describe("sanitizeAlarmMode", () => {
     assert.equal(sanitizeAlarmMode("bogus"), DEFAULT_ALARM_MODE);
   });
 
+  it("defaults to app", () => {
+    assert.equal(DEFAULT_ALARM_MODE, "app");
+  });
+
   it("keeps clock", () => {
     assert.equal(sanitizeAlarmMode("clock"), "clock");
   });
