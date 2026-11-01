@@ -1,0 +1,204 @@
+package {packageName}
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+
+/** Plays the alarm sound and vibration and shows the full-screen alarm UI. */
+class AlarmRingService : Service() {
+    private var player: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var label: String = ""
+    private val handler = Handler(Looper.getMainLooper())
+    private val autoStop = Runnable { stopRinging() }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_SNOOZE -> {
+                snooze()
+                stopRinging()
+            }
+            ACTION_DISMISS -> stopRinging()
+            else -> startRinging(
+                intent?.getIntExtra(AlarmReceiver.EXTRA_ID, -1) ?: -1,
+                intent?.getStringExtra(AlarmReceiver.EXTRA_LABEL) ?: ""
+            )
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startRinging(id: Int, alarmLabel: String) {
+        label = alarmLabel
+        if (id >= 0) AlarmStore.remove(this, id)
+
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            buildNotification(),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        )
+
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "candlealerts:ring").apply {
+            acquire(RING_TIMEOUT_MS + 5000L)
+        }
+
+        playSound()
+        startVibration()
+        handler.removeCallbacks(autoStop)
+        handler.postDelayed(autoStop, RING_TIMEOUT_MS)
+    }
+
+    private fun playSound() {
+        try {
+            val uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            player?.release()
+            player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(this@AlarmRingService, uri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            // Vibration and the notification still alert the user.
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startVibration() {
+        vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+        val pattern = longArrayOf(0, 800, 800)
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0), attrs)
+        } else {
+            vibrator?.vibrate(pattern, 0, attrs)
+        }
+    }
+
+    private fun snooze() {
+        val minutes = AlarmStore.snoozeMinutes(this).coerceAtLeast(1)
+        val alarm = AlarmStore.add(this, System.currentTimeMillis() + minutes * 60_000L, label)
+        AlarmScheduling.register(this, alarm)
+    }
+
+    private fun stopRinging() {
+        handler.removeCallbacks(autoStop)
+        try {
+            player?.stop()
+        } catch (e: Exception) {
+        }
+        player?.release()
+        player = null
+        vibrator?.cancel()
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        sendBroadcast(Intent(ACTION_STOPPED).setPackage(packageName))
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(autoStop)
+        player?.release()
+        player = null
+        vibrator?.cancel()
+        wakeLock?.let { if (it.isHeld) it.release() }
+        super.onDestroy()
+    }
+
+    private fun actionIntent(action: String, requestCode: Int): PendingIntent =
+        PendingIntent.getService(
+            this,
+            requestCode,
+            Intent(this, AlarmRingService::class.java).setAction(action),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun buildNotification(): Notification {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Candle alarms",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+            nm.createNotificationChannel(channel)
+        }
+
+        val uiIntent = Intent(this, AlarmRingActivity::class.java).apply {
+            putExtra(AlarmReceiver.EXTRA_LABEL, label)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val uiPending = PendingIntent.getActivity(
+            this,
+            0,
+            uiIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(if (label.isEmpty()) "Candle alert" else label)
+            .setContentText("Alarm")
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setFullScreenIntent(uiPending, true)
+            .setContentIntent(uiPending)
+            .addAction(0, "Snooze", actionIntent(ACTION_SNOOZE, 1))
+            .addAction(0, "Dismiss", actionIntent(ACTION_DISMISS, 2))
+            .build()
+    }
+
+    companion object {
+        const val ACTION_RING = "{packageName}.RING"
+        const val ACTION_SNOOZE = "{packageName}.SNOOZE"
+        const val ACTION_DISMISS = "{packageName}.DISMISS"
+        const val ACTION_STOPPED = "{packageName}.RING_STOPPED"
+        private const val CHANNEL_ID = "candle_alarm_ring"
+        private const val NOTIFICATION_ID = 4101
+        private const val RING_TIMEOUT_MS = 5 * 60 * 1000L
+    }
+}

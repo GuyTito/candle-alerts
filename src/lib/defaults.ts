@@ -5,6 +5,7 @@ export interface Defaults {
   leadMinutes: number;
   count: number;
   sameDayOnly: boolean;
+  snoozeMinutes: number;
 }
 
 export const DEFAULT_VALUES: Defaults = {
@@ -12,7 +13,10 @@ export const DEFAULT_VALUES: Defaults = {
   leadMinutes: 2,
   count: 2,
   sameDayOnly: false,
+  snoozeMinutes: 10,
 };
+
+export const MAX_SNOOZE_MINUTES = 60;
 
 function toInt(value: unknown): number | null {
   const n = typeof value === "string" ? Number(value.trim()) : value;
@@ -29,6 +33,7 @@ export function sanitizeDefaults(raw: unknown): Defaults {
   const interval = toInt(obj.intervalMinutes);
   const lead = toInt(obj.leadMinutes);
   const count = toInt(obj.count);
+  const snooze = toInt(obj.snoozeMinutes);
 
   return {
     intervalMinutes:
@@ -45,6 +50,10 @@ export function sanitizeDefaults(raw: unknown): Defaults {
       typeof obj.sameDayOnly === "boolean"
         ? obj.sameDayOnly
         : DEFAULT_VALUES.sameDayOnly,
+    snoozeMinutes:
+      snooze !== null && snooze >= 1 && snooze <= MAX_SNOOZE_MINUTES
+        ? snooze
+        : DEFAULT_VALUES.snoozeMinutes,
   };
 }
 
@@ -53,6 +62,7 @@ export function validateDefaults(d: {
   intervalMinutes: string;
   leadMinutes: string;
   count: string;
+  snoozeMinutes?: string;
 }): string | null {
   const interval = toInt(d.intervalMinutes);
   if (interval === null || interval < 1) {
@@ -65,6 +75,12 @@ export function validateDefaults(d: {
   const count = toInt(d.count);
   if (count === null || count < 1 || count > MAX_ALERT_COUNT) {
     return `Count must be a whole number between 1 and ${MAX_ALERT_COUNT}`;
+  }
+  if (d.snoozeMinutes !== undefined) {
+    const snooze = toInt(d.snoozeMinutes);
+    if (snooze === null || snooze < 1 || snooze > MAX_SNOOZE_MINUTES) {
+      return `Snooze must be a whole number between 1 and ${MAX_SNOOZE_MINUTES} minutes`;
+    }
   }
   return null;
 }

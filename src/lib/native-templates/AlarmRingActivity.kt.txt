@@ -1,0 +1,85 @@
+package {packageName}
+
+import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Color
+import android.os.Build
+import android.os.Bundle
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+
+/** Lock-screen alarm UI with Snooze and Dismiss. */
+class AlarmRingActivity : Activity() {
+    private val stoppedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            finish()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        val label = intent.getStringExtra(AlarmReceiver.EXTRA_LABEL) ?: ""
+        val pad = (24 * resources.displayMetrics.density).toInt()
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#10151D"))
+            setPadding(pad, pad, pad, pad)
+        }
+        root.addView(TextView(this).apply {
+            text = if (label.isEmpty()) "Candle alert" else label
+            textSize = 28f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+        })
+        root.addView(Button(this).apply {
+            text = "Snooze"
+            setOnClickListener { send(AlarmRingService.ACTION_SNOOZE) }
+        })
+        root.addView(Button(this).apply {
+            text = "Dismiss"
+            setOnClickListener { send(AlarmRingService.ACTION_DISMISS) }
+        })
+        setContentView(root)
+
+        ContextCompat.registerReceiver(
+            this,
+            stoppedReceiver,
+            IntentFilter(AlarmRingService.ACTION_STOPPED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    private fun send(action: String) {
+        startService(Intent(this, AlarmRingService::class.java).setAction(action))
+        finish()
+    }
+
+    override fun onDestroy() {
+        try {
+            unregisterReceiver(stoppedReceiver)
+        } catch (e: Exception) {
+        }
+        super.onDestroy()
+    }
+}

@@ -1,0 +1,66 @@
+package {packageName}
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+
+object AlarmScheduling {
+    private fun alarmManager(context: Context) =
+        context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    fun canScheduleExact(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            alarmManager(context).canScheduleExactAlarms()
+
+    private fun fireIntent(context: Context, alarm: StoredAlarm): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmReceiver.ACTION_FIRE
+            putExtra(AlarmReceiver.EXTRA_ID, alarm.id)
+            putExtra(AlarmReceiver.EXTRA_LABEL, alarm.label)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            alarm.id,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** Registers with setAlarmClock: exempt from Doze and shown as the next alarm. */
+    fun register(context: Context, alarm: StoredAlarm) {
+        val showIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        val showPending = PendingIntent.getActivity(
+            context,
+            0,
+            showIntent ?: Intent(),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager(context).setAlarmClock(
+            AlarmManager.AlarmClockInfo(alarm.timeMs, showPending),
+            fireIntent(context, alarm)
+        )
+    }
+
+    fun cancel(context: Context, id: Int) {
+        alarmManager(context).cancel(fireIntent(context, StoredAlarm(id, 0L, "")))
+        AlarmStore.remove(context, id)
+    }
+
+    fun cancelAll(context: Context) {
+        AlarmStore.all(context).forEach {
+            alarmManager(context).cancel(fireIntent(context, it))
+        }
+        AlarmStore.clear(context)
+    }
+
+    /** Re-registers future alarms (after reboot or app update) and drops past ones. */
+    fun rescheduleAll(context: Context) {
+        if (!canScheduleExact(context)) return
+        val now = System.currentTimeMillis()
+        AlarmStore.all(context).forEach {
+            if (it.timeMs > now) register(context, it) else AlarmStore.remove(context, it.id)
+        }
+    }
+}
