@@ -15,9 +15,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AlarmMode, DEFAULT_ALARM_MODE } from "@/lib/alarmMode";
+import { loadAlarmMode } from "@/lib/alarmModeStorage";
 import { androidAlarmScheduler } from "@/lib/alarmScheduler.android";
+import { appAlarmScheduler } from "@/lib/appAlarmScheduler";
 import { iosAlarmScheduler } from "@/lib/alarmScheduler.ios";
-import { getAlarmScheduler, setAlarmScheduler } from "@/lib/alarmSchedulerCore";
+import {
+  getAlarmScheduler,
+  PendingAlarm,
+  setAlarmScheduler,
+} from "@/lib/alarmSchedulerCore";
 import { SettingsFieldValues, SettingsFields } from "@/components/SettingsFields";
 import {
   CandleAlert,
@@ -27,16 +34,19 @@ import {
 import { DEFAULT_VALUES } from "@/lib/defaults";
 import { loadDefaults } from "@/lib/defaultsStorage";
 
-function initializeScheduler() {
+function initializeScheduler(mode: AlarmMode) {
   if (Platform.OS === "android") {
-    setAlarmScheduler(androidAlarmScheduler);
+    setAlarmScheduler(
+      mode === "app" ? appAlarmScheduler : androidAlarmScheduler,
+    );
   } else {
     setAlarmScheduler(iosAlarmScheduler);
   }
 }
 
 export default function Index() {
-  initializeScheduler();
+  const [mode, setMode] = useState<AlarmMode>(DEFAULT_ALARM_MODE);
+  initializeScheduler(mode);
 
   const [fields, setFields] = useState<SettingsFieldValues>({
     intervalMinutes: String(DEFAULT_VALUES.intervalMinutes),
@@ -49,12 +59,32 @@ export default function Index() {
   const [generatedAlerts, setGeneratedAlerts] = useState<CandleAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingAlarm[]>([]);
+
+  const refreshPending = useCallback(async () => {
+    const scheduler = getAlarmScheduler();
+    if (!scheduler.listPending) {
+      setPending([]);
+      return;
+    }
+    try {
+      setPending(await scheduler.listPending());
+    } catch {
+      setPending([]);
+    }
+  }, []);
 
   // Reload saved defaults whenever the screen gains focus (e.g. returning
   // from settings), replacing the current temporary edits.
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      loadAlarmMode().then((m) => {
+        if (!active) return;
+        initializeScheduler(m);
+        setMode(m);
+        refreshPending();
+      });
       loadDefaults().then((d) => {
         if (!active) return;
         setFields({
@@ -68,7 +98,7 @@ export default function Index() {
       return () => {
         active = false;
       };
-    }, []),
+    }, [refreshPending]),
   );
 
   const handleGenerate = () => {
@@ -129,8 +159,31 @@ export default function Index() {
     try {
       const scheduler = getAlarmScheduler();
       const scheduledCount = generatedAlerts.length;
+      const permission = await scheduler.ensurePermissions?.();
+      if (permission && !permission.ok) {
+        const { openSettings } = permission;
+        Alert.alert(
+          "Permission needed",
+          permission.message,
+          openSettings
+            ? [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open settings", onPress: () => openSettings() },
+              ]
+            : undefined,
+        );
+        return;
+      }
       await scheduler.scheduleCandleAlerts(generatedAlerts);
       setGeneratedAlerts([]);
+      if (scheduler.capabilities.manageAlarms) {
+        await refreshPending();
+        Alert.alert(
+          "Alarms set",
+          `${scheduledCount} alarm${scheduledCount === 1 ? "" : "s"} scheduled.`,
+        );
+        return;
+      }
       // Deliberately not "N alarms scheduled": startActivity success means the
       // intent was dispatched, not that the clock app created the alarm. Only
       // the clock app can confirm that.
@@ -160,6 +213,22 @@ export default function Index() {
         e instanceof Error ? e.message : "Failed to open clock app";
       setError(message);
       Alert.alert("Error", message);
+    }
+  };
+
+  const handleCancelAlarm = async (id: number) => {
+    try {
+      await getAlarmScheduler().cancel?.(id);
+    } finally {
+      await refreshPending();
+    }
+  };
+
+  const handleCancelAll = async () => {
+    try {
+      await getAlarmScheduler().cancelAll?.();
+    } finally {
+      await refreshPending();
     }
   };
 
@@ -310,18 +379,61 @@ export default function Index() {
                   {isLoading ? "Scheduling..." : "Set Alarms"}
                 </Text>
               </TouchableOpacity>
+              {!getAlarmScheduler().capabilities.background && (
+                <Text style={styles.hint}>
+                  Keep the app open while alarms are being set.
+                </Text>
+              )}
             </View>
           )}
 
-          <TouchableOpacity
-            style={[styles.button, styles.buttonOutline]}
-            onPress={handleOpenClock}
-            disabled={isLoading}
-          >
-            <Text style={[styles.buttonText, styles.buttonOutlineText]}>
-              Open Clock App
-            </Text>
-          </TouchableOpacity>
+          {getAlarmScheduler().capabilities.manageAlarms ? (
+            pending.length > 0 && (
+              <View style={styles.alertsContainer}>
+                <View style={styles.alertsHeader}>
+                  <Text style={styles.alertsTitle}>
+                    Scheduled Alarms ({pending.length})
+                  </Text>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel all scheduled alarms"
+                    style={styles.alertActionButton}
+                    onPress={handleCancelAll}
+                  >
+                    <Text style={styles.alertAction}>Cancel All</Text>
+                  </TouchableOpacity>
+                </View>
+                {pending.map((alarm) => (
+                  <View key={alarm.id} style={styles.alertItem}>
+                    <View style={styles.alertItemHeader}>
+                      <Text style={styles.alertLabel}>{alarm.label}</Text>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cancel ${alarm.label}`}
+                        style={styles.alertActionButton}
+                        onPress={() => handleCancelAlarm(alarm.id)}
+                      >
+                        <Text style={styles.alertAction}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.alertTime}>
+                      {formatDateTime(alarm.time)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, styles.buttonOutline]}
+              onPress={handleOpenClock}
+              disabled={isLoading}
+            >
+              <Text style={[styles.buttonText, styles.buttonOutlineText]}>
+                Open Clock App
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.footer}>
@@ -336,6 +448,12 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
+  hint: {
+    fontSize: 13,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 8,
+  },
   startLabel: {
     fontSize: 14,
     fontWeight: "500",

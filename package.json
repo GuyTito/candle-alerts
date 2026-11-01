@@ -44,7 +44,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "tsx --test src/lib/candleAlerts.test.ts src/lib/defaults.test.ts"
+    "test": "tsx --test src/lib/candleAlerts.test.ts src/lib/defaults.test.ts src/lib/alarmMode.test.ts"
   },
   "private": true
 }

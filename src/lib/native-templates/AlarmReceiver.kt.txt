@@ -1,0 +1,24 @@
+package {packageName}
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.ContextCompat
+
+class AlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_FIRE) return
+        val service = Intent(context, AlarmRingService::class.java).apply {
+            action = AlarmRingService.ACTION_RING
+            putExtra(EXTRA_ID, intent.getIntExtra(EXTRA_ID, -1))
+            putExtra(EXTRA_LABEL, intent.getStringExtra(EXTRA_LABEL) ?: "")
+        }
+        ContextCompat.startForegroundService(context, service)
+    }
+
+    companion object {
+        const val ACTION_FIRE = "{packageName}.ALARM_FIRE"
+        const val EXTRA_ID = "alarm_id"
+        const val EXTRA_LABEL = "alarm_label"
+    }
+}

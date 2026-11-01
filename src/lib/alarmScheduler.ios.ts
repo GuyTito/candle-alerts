@@ -9,6 +9,8 @@ import { AlarmScheduler } from "./alarmSchedulerCore";
 import { CandleAlert } from "./candleAlerts";
 
 export const iosAlarmScheduler: AlarmScheduler = {
+  capabilities: { background: false, manageAlarms: false },
+
   async scheduleCandleAlerts(_alerts: CandleAlert[]): Promise<CandleAlert[]> {
     throw new Error("iOS alarm scheduling not implemented yet");
   },

@@ -1,0 +1,71 @@
+package {packageName}
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
+data class StoredAlarm(val id: Int, val timeMs: Long, val label: String)
+
+/** Persists pending app-owned alarms so they survive reboots. */
+object AlarmStore {
+    private const val PREFS = "candle_alarms"
+    private const val KEY_ALARMS = "alarms"
+    private const val KEY_NEXT_ID = "next_id"
+    private const val KEY_SNOOZE = "snooze_minutes"
+    const val DEFAULT_SNOOZE_MINUTES = 10
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    @Synchronized
+    fun all(context: Context): List<StoredAlarm> {
+        val json = prefs(context).getString(KEY_ALARMS, null) ?: return emptyList()
+        return try {
+            val array = JSONArray(json)
+            (0 until array.length()).map {
+                val o = array.getJSONObject(it)
+                StoredAlarm(o.getInt("id"), o.getLong("timeMs"), o.optString("label", ""))
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    @Synchronized
+    private fun write(context: Context, alarms: List<StoredAlarm>) {
+        val array = JSONArray()
+        alarms.forEach {
+            array.put(
+                JSONObject().put("id", it.id).put("timeMs", it.timeMs).put("label", it.label)
+            )
+        }
+        prefs(context).edit().putString(KEY_ALARMS, array.toString()).apply()
+    }
+
+    @Synchronized
+    fun add(context: Context, timeMs: Long, label: String): StoredAlarm {
+        val p = prefs(context)
+        val id = p.getInt(KEY_NEXT_ID, 1)
+        p.edit().putInt(KEY_NEXT_ID, if (id == Int.MAX_VALUE) 1 else id + 1).apply()
+        val alarm = StoredAlarm(id, timeMs, label)
+        write(context, all(context) + alarm)
+        return alarm
+    }
+
+    @Synchronized
+    fun remove(context: Context, id: Int) {
+        write(context, all(context).filter { it.id != id })
+    }
+
+    @Synchronized
+    fun clear(context: Context) {
+        write(context, emptyList())
+    }
+
+    fun snoozeMinutes(context: Context): Int =
+        prefs(context).getInt(KEY_SNOOZE, DEFAULT_SNOOZE_MINUTES)
+
+    fun setSnoozeMinutes(context: Context, minutes: Int) {
+        prefs(context).edit().putInt(KEY_SNOOZE, minutes).apply()
+    }
+}

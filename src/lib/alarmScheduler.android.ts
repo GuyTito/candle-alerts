@@ -50,6 +50,8 @@ export function validateClockAlarmDates(
 }
 
 export const androidAlarmScheduler: AlarmScheduler = {
+  capabilities: { background: false, manageAlarms: false },
+
   async scheduleCandleAlerts(alerts: CandleAlert[]): Promise<CandleAlert[]> {
     validateClockAlarmDates(alerts, new Date());
     const nativeModule = getNativeModule();
